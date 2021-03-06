@@ -1,21 +1,25 @@
-from yarpiz.pso import PSO
+# from yarpiz.pso import PSO
+# import yarpiz.pso as yp
 import numpy as np
 import pandapower as pp
 from pandapower.networks import case14, case_ieee30
 
+from lib import yarpiz_custom_pso as yp
 import lib.fpor_tools as fpor
 
+global net, net_params
 net = case14()
-# pp.runpp(rede, algorithm = 'nr', numba = True)
-
 net_params = fpor.network_set(net)
+
+global nb, ng, nt, ns
 nb = net_params['n_bus']
 ng = net_params['n_gen']
 nt = net_params['n_taps']
 ns = net_params['n_shunt']
+pp.runpp(net, algorithm = 'nr', numba = True)
 
 pso_params = {
-    'MaxIter':  200,
+    'MaxIter':  100,
     'PopSize':  70,
     'c1':       1.5,
     'c2':       2,
@@ -24,44 +28,45 @@ pso_params = {
 }
 
 test_params = {
-    'Runs': 5
+    'Runs': 1,
+    'lambda_volt': 1e3,
+    'lambda_tap': 1e3,
+    'lambda_shunt': 1e7,
+    'volt_threshold':1e-12,
+    'tap_threshold': 1e-12,
+    'shunt_threshold':1e-12
 }
 
-# def run_pso(net, pso_params):
-### DEFINING VARIABLES. TBD ADD THIS TO FUNCTION
-shunt_values = net_params['shunt_values'][str(nb)]
-v_max = net.bus.max_vm_pu.to_numpy(dtype = np.float32)[:ng]
-v_min = net.bus.min_vm_pu.to_numpy(dtype = np.float32)[:ng]
-tap_max = np.repeat(net_params['tap_values'][-1], nt)
-tap_min = np.repeat(net_params['tap_values'][0], nt)
-shunt_max = shunt_values[:,-1]
-shunt_min = shunt_values[:, 0]
+# lambda -> Multiplies discrete penalties
+global lambd_volt, lambd_tap, lambd_shunt, tap_thr, sh_thr
+lambd_volt = test_params['lambda_volt']
+lambd_tap = test_params['lambda_tap']
+lambd_shunt = test_params['lambda_shunt']
+volt_thr = test_params['volt_threshold']
+tap_thr = test_params['tap_threshold']
+sh_thr = test_params['shunt_threshold']
 
-# independent variables
-# Voltages
-v_temp = net.gen.vm_pu.to_numpy(dtype=np.float32)
-#  tap_pu = (tap_pos + tap_neutral)*tap_step_percent/100 (PandaPower)
-taps_temp = 1 + ((net.trafo.tap_pos.to_numpy(dtype = np.float32)[0:nt] +\
-                      net.trafo.tap_neutral.to_numpy(dtype = np.float32)[0:nt]) *\
-                     (net.trafo.tap_step_percent.to_numpy(dtype = np.float32)[0:nt]/100))
-#  shunt_pu = -100*shunt (PandaPower)
-shunt_temp = -net.shunt.q_mvar.to_numpy(dtype = np.float32)/100
+def fitness_function(x):
+    #TBD Description
 
-# Particles will be in the following format:
-x = np.array([np.concatenate((v_temp, taps_temp, shunt_temp),axis=0)])
-x = np.squeeze(x)
+    x = fpor.run_power_flow(x, net, net_params, ng, nt, ns)
+    #fopt and boundaries penalty
+    f, pen_v = fpor.fopt_and_penalty(net, net_params,n_threshold=volt_thr)
+    tap_pen = fpor.senoidal_penalty_taps(x, net_params, n_threshold=tap_thr)
+    shunt_pen = fpor.polinomial_penalty_shunts(x, net_params, n_threshold=sh_thr)
 
-nVar = len(x)
-upper_bounds = np.squeeze(np.array([np.concatenate((v_max, tap_max, shunt_max),axis=0)]))
-lower_bounds = np.squeeze(np.array([np.concatenate((v_min, tap_min, shunt_min),axis=0)]))
+    return f + lambd_volt*pen_v + lambd_tap*tap_pen + lambd_shunt*shunt_pen
 
-def fitness_function():
-    # Placeholder
-    return True
-
+upper_bounds, lower_bounds = fpor.get_upper_and_lower_bounds_from_net(net, net_params)
+n_var = fpor.get_variables_number_from_net(net, net_params)
 problem = {
         'CostFunction': fitness_function,
-        'nVar': 8,
-        'VarMin': np.array(lb),
-        'VarMax': np.array(ub)
+        'nVar': n_var,
+        'VarMin': lower_bounds,
+        'VarMax': upper_bounds
 }
+
+for run in range(1,test_params['Runs']+1):
+    print('Run No {}'.format(run))
+    gbest, pop = yp.PSO(problem, **pso_params)
+    fpor.debug_fitness_function(gbest['position'],net,net_params,test_params)

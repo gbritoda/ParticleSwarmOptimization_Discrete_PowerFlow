@@ -2,13 +2,19 @@
 # import yarpiz.pso as yp
 import numpy as np
 import pandapower as pp
-from pandapower.networks import case14, case_ieee30
+from pandapower.networks import case14, case_ieee30, case118
 
 from lib import yarpiz_custom_pso as yp
 import lib.fpor_tools as fpor
 
 global net, net_params
-net = case14()
+net = {
+    14:case14,
+    30:case_ieee30,
+    118:case118
+# Change the number below to select the case.
+}[118]()
+print(net)
 net_params = fpor.network_set(net)
 
 global nb, ng, nt, ns
@@ -28,7 +34,7 @@ pso_params = {
 }
 
 test_params = {
-    'Runs': 1,
+    'Runs': 3,
     'lambda_volt': 1e3,
     'lambda_tap': 1e3,
     'lambda_shunt': 1e7,
@@ -66,7 +72,16 @@ problem = {
         'VarMax': upper_bounds
 }
 
+results = []
 for run in range(1,test_params['Runs']+1):
     print('Run No {}'.format(run))
-    gbest, pop = yp.PSO(problem, **pso_params)
-    fpor.debug_fitness_function(gbest['position'],net,net_params,test_params)
+    gbest, pop = yp.PSO(problem, **pso_params) #TBD Find a way to printout raw fopt
+    print('Run No {} results:'.format(run))
+    results.append(\
+        fpor.debug_fitness_function(gbest['position'],net,net_params,test_params))
+
+fopt_values = [results[i]['f'] for i in range(len(results))]
+ind = np.argmax(fopt_values)
+print("Final results of best run:")
+fpor.print_result_summary(**results[ind])
+

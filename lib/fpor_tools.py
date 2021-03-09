@@ -639,3 +639,12 @@ def debug_fitness_function(particle, net, net_params, test_params, printout=True
         'particle':particle
     }
     return ret
+
+def print_result_summary(f, pen_v, tap_pen, shunt_pen, lambda_volt, lambda_tap,
+    lambda_shunt, particle):
+    #TBD description
+
+    print_str = 'Fopt:\t\t{}\npen_v:\t\t{}\ntap_pen:\t{}\nshunt_pen:\t{}\nlambda_volt:\t{}\nlambda_tap:\t{}\nlambda_shunt:\t{}\n'.format(
+            f, pen_v, tap_pen, shunt_pen, lambda_volt, lambda_tap, lambda_shunt)
+    print(print_str)
+    return print_str

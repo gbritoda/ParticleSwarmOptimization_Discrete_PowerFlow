@@ -34,7 +34,7 @@ def penalty(x):
     for ineq_con in ineq_f:
         ineq += ineq_con(x)**2
 
-    # Bounds penalties
+    # Boundaries penalties
     ## As of now there are no boundary penalties,
     # since the algorithm takes care that the particles are inside the boundaries
     # temp = np.array(x) + np.array(lb)
@@ -57,7 +57,6 @@ def print_summary(fopt, xopt, idx, pnlty, elapsed):
             " Population = %(xopt)s \n" +\
             " Elapsed = %(elapsed).2f s \n"
     print(msg % locals())
-
 
 
 #### MAIN PROGRAM ####

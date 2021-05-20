@@ -1,11 +1,19 @@
 # from yarpiz.pso import PSO
 # import yarpiz.pso as yp
+import argparse
 import numpy as np
 import pandapower as pp
+from pprint import pprint
+import matplotlib.pyplot as plt
 from pandapower.networks import case14, case_ieee30, case118
-
 from lib import yarpiz_custom_pso as yp
 import lib.fpor_tools as fpor
+
+parser = argparse.ArgumentParser(description='Particle Swarm Optimization')
+parser.add_argument('-nb', '--num_bus', type=int, help="Bus number", default=14)
+parser.add_argument('-r', '--runs', type=int, help="Number of runs", default=1)
+parser.add_argument('-p', '--plot', action='store_true', help="Plot the results")
+args = parser.parse_args()
 
 global net, net_params
 net = {
@@ -13,7 +21,8 @@ net = {
     30:case_ieee30,
     118:case118
 # Change the number below to select the case.
-}[118]()
+}[args.num_bus]()
+print('\nIEEE System {} bus\n'.format(args.num_bus))
 print(net)
 net_params = fpor.network_set(net)
 
@@ -34,7 +43,7 @@ pso_params = {
 }
 
 test_params = {
-    'Runs': 3,
+    'Runs': args.runs,
     'lambda_volt': 1e3,
     'lambda_tap': 1e3,
     'lambda_shunt': 1e7,
@@ -53,10 +62,10 @@ tap_thr = test_params['tap_threshold']
 sh_thr = test_params['shunt_threshold']
 
 def fitness_function(x):
-    #TBD Description
+    # TBD Description
 
     x = fpor.run_power_flow(x, net, net_params, ng, nt, ns)
-    #fopt and boundaries penalty
+    # fopt and boundaries penalty
     f, pen_v = fpor.fopt_and_penalty(net, net_params,n_threshold=volt_thr)
     tap_pen = fpor.senoidal_penalty_taps(x, net_params, n_threshold=tap_thr)
     shunt_pen = fpor.polinomial_penalty_shunts(x, net_params, n_threshold=sh_thr)
@@ -71,17 +80,27 @@ problem = {
         'VarMin': lower_bounds,
         'VarMax': upper_bounds
 }
-
+conv_plot = []
 results = []
 for run in range(1,test_params['Runs']+1):
-    print('Run No {}'.format(run))
-    gbest, pop = yp.PSO(problem, **pso_params) #TBD Find a way to printout raw fopt
+    print('Run No {} out of {}'.format(run,test_params['Runs']))
+    gbest, pop, convergence_points = yp.PSO(problem, **pso_params) # TBD a way to get convergence.
     print('Run No {} results:'.format(run))
     results.append(\
         fpor.debug_fitness_function(gbest['position'],net,net_params,test_params))
+    if args.plot:
+        conv_plot.append(convergence_points)
 
 fopt_values = [results[i]['f'] for i in range(len(results))]
-ind = np.argmax(fopt_values)
-print("Final results of best run:")
-fpor.print_result_summary(**results[ind])
+ind = np.argmin(fopt_values)
+best_result = results[ind]
+if args.plot:
+    conv_plot = conv_plot[ind]
+del results
+print("Final results of best run: (Run {})".format(ind+1))
+pprint(best_result, sort_dicts=False)
 
+if args.plot:
+    fpor.plot_results(nb, best_result, voltage_plot=True)
+    fpor.plot_results(nb, best_result, voltage_plot=False)
+    fpor.plot_convergence(nb, conv_plot)

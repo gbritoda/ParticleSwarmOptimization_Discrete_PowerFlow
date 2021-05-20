@@ -1,6 +1,8 @@
 import numpy as np
 import pandapower as pp
 import pandapower.networks
+import matplotlib.pyplot as plt
+from pprint import pprint
 
 def sup_discrete_values(vetor_x, lista_discretos):
     '''
@@ -545,11 +547,9 @@ def run_power_flow(particle, net, net_params, ng, nt, ns):
     '''
     TBD Description
     Inputs:
-        -> alcateia
         -> net
         -> conjunto_shunts
     Outputs:
-        -> alcateia
     '''
     
     '''
@@ -620,14 +620,13 @@ def debug_fitness_function(particle, net, net_params, test_params, printout=True
     # shunts = particle[ng+nt:ng+nt+ns]
 
     particle = run_power_flow(particle, net, net_params, ng, nt, ns)
+    voltages = net.res_bus.vm_pu.to_numpy()
+    angles = net.res_bus.va_degree.to_numpy()
     #fopt and boundaries penalty
     f, pen_v = fopt_and_penalty(net, net_params)
     tap_pen = senoidal_penalty_taps(particle, net_params, n_threshold=tap_thr)
     shunt_pen = polinomial_penalty_shunts(particle, net_params, n_threshold=sh_thr)
 
-    if printout:
-        print('Fopt:\t\t{}\npen_v:\t\t{}\ntap_pen:\t{}\nshunt_pen:\t{}\nlambda_volt:\t{}\nlambda_tap:\t{}\nlambda_shunt:\t{}\n'.format(
-            f, pen_v, tap_pen, shunt_pen, lambd_volt, lambd_tap, lambd_shunt))
     ret = {
         'f':f,
         'pen_v':pen_v,
@@ -636,15 +635,55 @@ def debug_fitness_function(particle, net, net_params, test_params, printout=True
         'lambda_volt':lambd_volt,
         'lambda_tap':lambd_tap,
         'lambda_shunt':lambd_shunt,
-        'particle':particle
+        'particle':particle,
+        'voltages': voltages,
+        'angles': angles
     }
+
+    if printout:
+        pprint(ret, sort_dicts=False)
     return ret
 
-def print_result_summary(f, pen_v, tap_pen, shunt_pen, lambda_volt, lambda_tap,
-    lambda_shunt, particle):
-    #TBD description
 
-    print_str = 'Fopt:\t\t{}\npen_v:\t\t{}\ntap_pen:\t{}\nshunt_pen:\t{}\nlambda_volt:\t{}\nlambda_tap:\t{}\nlambda_shunt:\t{}\n'.format(
-            f, pen_v, tap_pen, shunt_pen, lambda_volt, lambda_tap, lambda_shunt)
-    print(print_str)
-    return print_str
+def plot_results(nb, best_result, voltage_plot=True):
+    test_name = "IEEE_{}_bus".format(nb)
+    x_bus = np.arange(1,nb+1)
+    plt.rcParams.update({'font.size': 7})
+
+    if voltage_plot:
+        y_plot = best_result['voltages']
+        y_label = "Magnitude de tensão (pu)"
+        file_name = test_name + '_voltages.pdf'
+        plot_dot = 'b.'
+    else:
+        y_plot = best_result['angles']
+        y_label = "Ângulo de tensão (º)"
+        file_name = test_name + '_angles.pdf'
+        plot_dot = 'r.'
+
+    plt.figure(figsize=(8,3))
+    plt.xticks(np.arange(1, max(x_bus)+1, 1.0))
+    plt.xlim((0,nb+1))
+    plt.ylabel(y_label)
+    plt.xlabel('Barra')
+    plt.tight_layout()
+    plt.grid()
+    plt.plot(x_bus,y_plot, plot_dot)
+    print("Saving plot to {}".format(file_name))
+    plt.savefig(file_name)
+    plt.clf()
+
+def plot_convergence(nb, conv_points):
+    x = range(len(conv_points))
+    y = conv_points
+    test_name = "IEEE_{}_bus".format(nb)
+    file_name = test_name +'_pso_convergence.pdf'
+    plt.ylim((0,1))
+    plt.figure(figsize=(6,3))
+    plt.xlabel('Iteração')
+    plt.ylabel('Valor da função objetivo')
+    plt.tight_layout()
+    plt.grid()
+    plt.plot(x,y, 'g')
+    print("Saving file to {}".format(file_name))
+    plt.savefig(file_name)

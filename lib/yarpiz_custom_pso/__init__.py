@@ -22,11 +22,11 @@ import sys
 import os.path
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
-import fpor_tools as fpor
 
 # Particle Swarm Optimization
 def PSO(problem, MaxIter = 100, PopSize = 100, c1 = 1.4962, c2 = 1.4962, w = 0.7298, wdamp = 1.0):
-
+    # Addition - Convergence plot
+    convergence_plot = []
     # Empty Particle Template
     empty_particle = {
         'position': None, 
@@ -82,11 +82,10 @@ def PSO(problem, MaxIter = 100, PopSize = 100, c1 = 1.4962, c2 = 1.4962, w = 0.7
                     gbest['cost'] = pop[i]['best_cost']
 
         w *= wdamp
+        convergence_plot.append(gbest['cost'])
         print('Iteration {}: Best Cost = {}'.format(it, gbest['cost']))
-        # f = fpor.debug_fitness_function(gbest['position'], net, net_params, test_params, printout=False)['f']
-        # print('Iteration {}: Best Cost = {}, Fopt = {}'.format(it, gbest['cost']))
 
-    return gbest, pop
+    return gbest, pop, convergence_plot
 
 # Start Time for tic and tov functions
 startTime_for_tictoc = 0

@@ -90,92 +90,6 @@ def inf_discrete_values(vetor_x, lista_discretos):
     
     return x_inf
 
-def sup_discrete_values(vetor_x, lista_discretos):
-    '''
-    Função que retorna o valor discreto superior de 'lista_discretos' mais próximo de todos os valores x de 'vetor_x' 
-
-    Inputs:
-        -> vetor_x = vetor (numpy array) contendo os valores que deseja-se obter o número discreto mais próximos
-        -> lista_discretos = lista (python list) que contém o conjunto de valores discretos que cada variável x admite
-    
-    Ouputs:
-        -> x_sup = vetor (numpy array) contendo os valores discretos superiores de 'lista_discretos' mais próximo 
-           dos valores de 'vetor_x'
-    '''
-    #Vetor de saída da função. Possui o mesmo formato (shape) que vetor_x
-    x_sup = np.zeros(vetor_x.shape)
-    
-    #Cópia de 'vetor_x'. Esta cópia é feita para evitar erros de alocamento dinâmico de memória.
-    vetor = np.copy(vetor_x)
-    
-    #Garante que a lista seja uma array numpy e armazena o resultado na variável 'lista'
-    lista = np.asarray(lista_discretos, dtype = np.float32)
-    
-    '''
-    Garante que os valores de 'vetor_x' estejam dentro dos limites de 'lista discretos' por um pequeno fator de 10^-3.
-    Caso contrário, a função numpy.searchsorted descrita a frente resultará em erro.
-    '''
-    vetor = vetor - 1e-3
-    np.clip(a = vetor, a_min = lista[0] + 1e-3, a_max = lista[-1] - 1e-3, out = vetor)
-    
-    '''
-    Utilizando a função numpy.searchsorted() para buscar os índices de 'lista_discretos' que correspondem aos valores
-    discretos superiores aos valores de 'vetor_x'
-    '''
-    indices = np.searchsorted(a=lista, v = vetor, side='right')
-    
-    #Armazena os valores de 'lista_discretos' cujos índices correspondem aos discretos superiores de 'vetor_x'
-    x_sup = np.take(lista, indices)
-    
-    #Deleta as variáveis locais
-    del vetor, lista, indices
-    
-    return x_sup
-
-def inf_discrete_values(vetor_x, lista_discretos):
-    '''
-    Função que retorna o valor discreto inferior de 'lista_discretos' mais próximo de todos os valores x de 'vetor_x' 
-    
-    Inputs:
-        -> vetor_x = vetor (numpy array) contendo os valores que deseja-se obter o número discreto mais próximo
-        -> lista_discretos = lista (python list) que contém o conjunto de valores discretos que cada variável x admite
-    
-    Ouputs:
-        -> x_inf = vetor (numpy array) contendo os valores discretos inferiores de 'lista_discretos' mais próximos 
-           dos valores de 'vetor_x'
-    '''
-    
-    #Vetor de saída da função. Possui o mesmo formato (shape) que vetor_x
-    x_inf = np.zeros(vetor_x.shape)
-    
-    #Cópia de 'vetor_x'. Esta cópia é feita para evitar erros de alocamento dinâmico de memória.
-    vetor = np.copy(vetor_x)
-    
-    #Garante que a lista seja uma array numpy e salva o resultado na variável local 'lista'
-    lista = np.asarray(lista_discretos, dtype = np.float32)
-    
-    '''
-    Garante que os valores de 'vetor_x' estejam dentro dos limites de 'lista discretos' por um pequeno fator de 10^-3.
-    Caso contrário, a função numpy.searchsorted descrita a frente resultará em erro. Salva o resultado de numpy.clip
-    na variável local 'vetor'
-    '''
-    vetor = vetor - 1e-3
-    np.clip(a = vetor, a_min = lista_discretos[0] + 1e-3, a_max = lista_discretos[-1] - 1e-3, out = vetor)
-    
-    '''
-    Utilizando a função numpy.searchsorted() para buscar os índices de 'lista_discretos' que correspondem aos valores
-    discretos inferiores aos valores de 'vetor_x'
-    '''
-    indices = np.searchsorted(a=lista, v = vetor, side='left') - 1
-    
-    #Armazena os valores de 'lista_discretos' cujos índices correspondem aos discretos superiores de 'vetor_x'
-    x_inf = np.take(lista, indices)
-    
-    #Deleta as variáveis locais
-    del vetor, lista, indices
-    
-    return x_inf
-
 def network_set(net):
     
     """
@@ -627,7 +541,14 @@ def polinomial_penalty_shunts(particle, net_params, n_threshold=1e-12):
 
     return pen_shunts
 
-
+def find_nearest(array, value):
+    """
+    Find nearest value from an array, given an array and a number.
+    """
+    # _orig_shape = array.shape
+    array = np.squeeze(np.asarray(array))
+    idx = (np.abs(array - value)).argmin()
+    return array[idx]
 
 def run_power_flow(particle, net, net_params, ng, nt, ns):
     '''
@@ -645,9 +566,18 @@ def run_power_flow(particle, net, net_params, ng, nt, ns):
     ns = número de susceptâncias shunt do sistema.
     '''
 
+    nb = net_params['n_bus']
     v_gen = particle[:ng]
     taps = particle[ng:ng+nt]
     shunts = particle[ng+nt:ng+nt+ns]
+    shunt_set = net_params['shunt_values'][str(nb)]
+
+    for i in range(len(shunt_set)):
+        _sh_set = shunt_set[i]
+        shunts[i] = find_nearest(_sh_set, shunts[i])
+
+
+
 
     #Inserindo as tensões das barras de geração na net
     net.gen.vm_pu = v_gen
@@ -671,7 +601,7 @@ def run_power_flow(particle, net, net_params, ng, nt, ns):
     net.shunt.q_mvar = shunts*(-100)
         
     #Soluciona o fluxo de carga utilizando o algoritmo Newton-Raphson
-    pp.runpp(net, algorithm = 'nr', numba = True, init = 'results', tolerance_mva = 1e-5)
+    pp.runpp(net, algorithm = 'nr', numba = True, init = 'results', tolerance_mva = 1e-6, enforce_q_lims=False)
         
     #Recebendo os valores das tensões das barras, taps e shunts e armazenando na particula
     v_gen = net.res_gen.vm_pu.to_numpy(dtype = np.float32)
@@ -689,7 +619,7 @@ def run_power_flow(particle, net, net_params, ng, nt, ns):
 
     return particle
 
-def debug_fitness_function(particle, net, net_params, test_params, printout=True):
+def debug_fitness_function(particle, net, net_params, test_params, elapsed=None, printout=True):
     #TBD Description
     # nb = net_params['n_bus']
     ng = net_params['n_gen']
@@ -701,10 +631,6 @@ def debug_fitness_function(particle, net, net_params, test_params, printout=True
     tap_thr = test_params['tap_threshold']
     sh_thr = test_params['shunt_threshold']
 
-    # v_gen = particle[:ng]
-    # taps = particle[ng:ng+nt]
-    # shunts = particle[ng+nt:ng+nt+ns]
-
     particle = run_power_flow(particle, net, net_params, ng, nt, ns)
     voltages = net.res_bus.vm_pu.to_numpy()
     angles = net.res_bus.va_degree.to_numpy()
@@ -713,21 +639,29 @@ def debug_fitness_function(particle, net, net_params, test_params, printout=True
     tap_pen = senoidal_penalty_taps(particle, net_params, n_threshold=tap_thr)
     shunt_pen = polinomial_penalty_shunts(particle, net_params, n_threshold=sh_thr)
 
+    v_gen = particle[:ng]
+    taps = particle[ng:ng+nt]
+    shunts = particle[ng+nt:ng+nt+ns]
+
     ret = {
         'f':f,
+        'elapsed_time': elapsed,
         'pen_v':pen_v,
         'tap_pen':tap_pen,
         'shunt_pen':shunt_pen,
         'lambda_volt':lambd_volt,
         'lambda_tap':lambd_tap,
         'lambda_shunt':lambd_shunt,
-        'particle':particle,
+        'v_gen': v_gen,
+        'taps': taps,
+        'shunts': shunts,
         'voltages': voltages,
         'angles': angles
     }
 
     if printout:
-        pprint(ret, sort_dicts=False)
+        # pprint(ret, sort_dicts=False)
+        pprint(ret)
     return ret
 
 
@@ -760,12 +694,15 @@ def plot_results(nb, best_result, voltage_plot=True):
     plt.clf()
 
 def plot_convergence(nb, conv_points):
-    x = range(len(conv_points))
+    x = range(1, len(conv_points)+1)
     y = conv_points
     test_name = "IEEE_{}_bus".format(nb)
     file_name = test_name +'_pso_convergence.pdf'
-    plt.ylim((0,1))
-    plt.figure(figsize=(6,3))
+    plt.figure(figsize=(8,3))
+    plt.rcParams.update({'font.size': 7})
+    plt.xticks(np.arange(0, max(x)+1, 5))
+    plt.xlim((0, len(conv_points)+1))
+    plt.ylim(0.8*np.min(conv_points),1.2*np.min(conv_points))
     plt.xlabel('Iteração')
     plt.ylabel('Valor da função objetivo')
     plt.tight_layout()
@@ -773,3 +710,13 @@ def plot_convergence(nb, conv_points):
     plt.plot(x,y, 'g')
     print("Saving file to {}".format(file_name))
     plt.savefig(file_name)
+    plt.clf()
+
+def get_results_statistics(fopt_values):
+    ret = {}
+    ret['max_value'] = np.max(fopt_values)
+    ret['med_value'] = np.mean(fopt_values)
+    ret['min_value'] = np.min(fopt_values)
+    ret['std_deviation'] = np.std(fopt_values)
+    ret['number_of_runs'] = len(fopt_values)
+    return ret

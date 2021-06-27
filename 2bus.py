@@ -42,7 +42,7 @@ def penalty(x):
     # upen = np.dot(x,np.greater(x,ub))
     # print("lpen {} upen {}".format(lpen,upen))
     # return (eq+ineq+np.abs(upen) + np.abs(lpen))*1000
-    return (eq+ineq)*1000
+    return (eq+ineq)*10000
 
 def fitness(x):
     """ Function to be minimized """
@@ -57,7 +57,6 @@ def print_summary(fopt, xopt, idx, pnlty, elapsed):
             " Population = %(xopt)s \n" +\
             " Elapsed = %(elapsed).2f s \n"
     print(msg % locals())
-
 
 #### MAIN PROGRAM ####
 global eq_f, ineq_f, ub, lb
@@ -78,7 +77,7 @@ problem = {
 
 parameters = {
     'MaxIter':  200,
-    'PopSize':  70,
+    'PopSize':  75,
     'c1':       1.5,
     'c2':       2,
     'w':        1,
@@ -86,20 +85,22 @@ parameters = {
 }
 
 test_params = {
-    'Runs': 5
+    'Runs': 100,
+    'Plot': True
 }
 
 penalties = []
 fitness = []
 x_runs = []
 times = []
+particles = []
 
 for run in range(test_params['Runs']):
     print("Run number {}".format(run))
     start = time.time()
 
     # gbest, pop = PSO(problem, MaxIter = 200, PopSize = 70, c1 = 1.5, c2 = 2, w = 1, wdamp = 0.995)
-    gbest, pop = PSO(problem, **parameters)
+    gbest, pop, plot_pop = PSO(problem, **parameters)
 
     times.append(time.time() - start)
     penalties.append(penalty(gbest['position']))
@@ -113,3 +114,32 @@ pnlty = penalties[idx]
 elapsed = times[idx]
 
 print_summary(fopt, xopt, idx, pnlty, elapsed)
+exit(0)
+import matplotlib.pyplot as plt
+from matplotlib import cm
+from matplotlib.ticker import LinearLocator
+
+th = -0.36586622
+# th = xopt[2]
+v1 = np.arange(0.95,1.1,0.01)
+v2 = np.arange(0.95,1.1,0.01)
+v1,v2 = np.meshgrid(v1,v2)
+
+Z=0.1923*(v1**2 + v2**2 - 2*v1*v2*cos(th))
+
+# Plot the surface
+fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+surf = ax.plot_surface(v1,v2,Z, cmap=cm.coolwarm, linewidth=0, antialiased=False)
+ax.set_zlim(0.03064, 0.04)
+# ax.zaxis.set_major_locator(LinearLocator(10))
+# ax.zaxis.set_major_formatter('{x:.02f}')
+fig.colorbar(surf, shrink=0.5, aspect=5)
+
+# scatter plot
+_p = np.array([p['position'] for p in pop])
+v1s = _p[:,0]
+v2s = _p[:,1]
+zs=0.1923*(v1s**2 + v2s**2 - 2*v1s*v2s*cos(th))
+ax.scatter(v1s, v2s, zs, marker='o')
+
+plt.show()

@@ -42,6 +42,7 @@ def PSO(problem, MaxIter = 100, PopSize = 100, c1 = 1.4962, c2 = 1.4962, w = 0.7
 
     # Create Initial Population
     pop = []
+    plot_pop = []
     for i in range(0, PopSize):
         pop.append(empty_particle.copy())
         pop[i]['position'] = np.random.uniform(VarMin, VarMax, nVar)
@@ -75,11 +76,11 @@ def PSO(problem, MaxIter = 100, PopSize = 100, c1 = 1.4962, c2 = 1.4962, w = 0.7
                 if pop[i]['best_cost'] < gbest['cost']:
                     gbest['position'] = pop[i]['best_position'].copy()
                     gbest['cost'] = pop[i]['best_cost']
-
+        plot_pop.append(pop)
         w *= wdamp
         print('Iteration {}: Best Cost = {}'.format(it, gbest['cost']))
 
-    return gbest, pop
+    return gbest, pop, plot_pop
 
 # Start Time for tic and tov functions
 startTime_for_tictoc = 0

@@ -6,6 +6,7 @@ import pandapower as pp
 from pprint import pprint
 import matplotlib.pyplot as plt
 from pandapower.networks import case14, case_ieee30, case118
+import time
 from lib import yarpiz_custom_pso as yp
 import lib.fpor_tools as fpor
 
@@ -34,7 +35,7 @@ ns = net_params['n_shunt']
 pp.runpp(net, algorithm = 'nr', numba = True)
 
 pso_params = {
-    'MaxIter':  100,
+    'MaxIter':  75,
     'PopSize':  70,
     'c1':       1.5,
     'c2':       2,
@@ -84,23 +85,32 @@ conv_plot = []
 results = []
 for run in range(1,test_params['Runs']+1):
     print('Run No {} out of {}'.format(run,test_params['Runs']))
-    gbest, pop, convergence_points = yp.PSO(problem, **pso_params) # TBD a way to get convergence.
+    start = time.time()
+    gbest, pop, convergence_points = yp.PSO(problem, **pso_params)
+    elapsed = round(time.time() - start, 2)
     print('Run No {} results:'.format(run))
     results.append(\
-        fpor.debug_fitness_function(gbest['position'],net,net_params,test_params))
+        fpor.debug_fitness_function(gbest['position'],net,net_params,test_params,elapsed))
     if args.plot:
         conv_plot.append(convergence_points)
 
 fopt_values = [results[i]['f'] for i in range(len(results))]
 ind = np.argmin(fopt_values)
 best_result = results[ind]
-if args.plot:
-    conv_plot = conv_plot[ind]
-del results
-print("Final results of best run: (Run {})".format(ind+1))
-pprint(best_result, sort_dicts=False)
+print("\nFinal results of best run: (Run {})".format(ind+1))
+# pprint(best_result, sort_dicts=False)
+pprint(best_result)
+
+print("\nStatistics:")
+pprint(fpor.get_results_statistics(fopt_values))
+
+print("\nTest Parameters:")
+pprint(test_params)
+
+print("\nPSO Parameters:")
+pprint(pso_params)
 
 if args.plot:
     fpor.plot_results(nb, best_result, voltage_plot=True)
     fpor.plot_results(nb, best_result, voltage_plot=False)
-    fpor.plot_convergence(nb, conv_plot)
+    fpor.plot_convergence(nb, conv_plot[ind])
